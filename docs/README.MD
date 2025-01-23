@@ -7,3 +7,4 @@ The action is triggered by the workflow defined in `.github/workflows/docs.yml`.
 ## Usage
 
 pnpm check-links
+fgfghj
