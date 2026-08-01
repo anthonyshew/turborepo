@@ -91,4 +91,11 @@ pub enum Error {
          in the root turbo.json."
     ))]
     PackageMayBePythonPackage { name: String },
+    #[error("No package found with name '{name}' in workspace")]
+    #[diagnostic(help(
+        "This repository contains go.work or go.mod, but Go package support is not enabled. Go \
+         modules become packages when `futureFlags.experimentalGoWorkspaces` is set in the root \
+         turbo.json."
+    ))]
+    PackageMayBeGoModule { name: String },
 }

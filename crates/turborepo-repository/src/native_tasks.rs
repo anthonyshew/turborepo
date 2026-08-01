@@ -44,6 +44,10 @@ pub enum NativeCommandTemplate {
     /// `uv <subcommand> <args>` with uv serial grouping. None of the
     /// registered subcommands forwards trailing args to another tool, so
     /// pass-through args attach directly as uv flags.
+    Go {
+        subcommand: String,
+        args: Vec<String>,
+    },
     Uv {
         subcommand: String,
         /// Fixed arguments, e.g. `--package=<name>` or `--all-packages`.
@@ -128,6 +132,29 @@ impl NativeTask {
                 pass_through_uses_separator,
             }),
             cwd_policy: WorkingDirectoryPolicy::RepositoryRoot,
+        }
+    }
+
+    /// Construct a Go-synthesized native task (not package-authored).
+    pub fn go(
+        name: impl Into<String>,
+        display: String,
+        subcommand: impl Into<String>,
+        args: Vec<String>,
+    ) -> Self {
+        let name = name.into();
+        Self {
+            name,
+            authored: false,
+            registered: true,
+            executable: true,
+            display: Some(display),
+            script: None,
+            command: Some(NativeCommandTemplate::Go {
+                subcommand: subcommand.into(),
+                args,
+            }),
+            cwd_policy: WorkingDirectoryPolicy::PackageDirectory,
         }
     }
 
@@ -223,6 +250,14 @@ impl ScopeNativeTasks {
                 .any(|task| matches!(task.command(), Some(NativeCommandTemplate::Cargo { .. })))
         {
             return Some("cargo".to_string());
+        }
+        if program == Some("go")
+            && self
+                .tasks()
+                .iter()
+                .any(|task| matches!(task.command(), Some(NativeCommandTemplate::Go { .. })))
+        {
+            return Some("go".to_string());
         }
         if program == Some("uv")
             && self
@@ -367,6 +402,7 @@ pub fn resolve_task_command(
     package_manager_binary: Option<&std::path::Path>,
     cargo_binary: Option<&std::path::Path>,
     uv_binary: Option<&std::path::Path>,
+    go_binary: Option<&std::path::Path>,
     pass_through_args: Option<&[String]>,
     override_command: Option<&[String]>,
 ) -> Result<Option<TaskCommand>, ResolveNativeCommandError> {
@@ -445,6 +481,24 @@ pub fn resolve_task_command(
                 serial_group: serial_group.clone(),
             }))
         }
+        NativeCommandTemplate::Go {
+            subcommand,
+            args: fixed_args,
+        } => {
+            let go_binary = go_binary.ok_or(ResolveNativeCommandError::MissingGoBinary)?;
+            let mut args: Vec<OsString> = std::iter::once(OsString::from(subcommand))
+                .chain(fixed_args.iter().map(OsString::from))
+                .collect();
+            if let Some(pass_through_args) = pass_through_args {
+                args.extend(pass_through_args.iter().map(OsString::from));
+            }
+            Ok(Some(TaskCommand {
+                program: go_binary.as_os_str().to_owned(),
+                args,
+                cwd,
+                serial_group: None,
+            }))
+        }
         NativeCommandTemplate::Uv {
             subcommand,
             args: fixed_args,
@@ -498,6 +552,8 @@ pub enum ResolveNativeCommandError {
          https://docs.astral.sh/uv/getting-started/installation/"
     )]
     MissingUvBinary,
+    #[error("could not find `go` binary")]
+    MissingGoBinary,
 }
 
 #[cfg(test)]

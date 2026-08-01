@@ -1,0 +1,117 @@
+---
+title: Go (Experimental)
+description: Use experimental native Go workspace support with Turborepo.
+product: turborepo
+type: integration
+summary: Discover Go modules as Turborepo packages and run native Go tasks.
+prerequisites:
+  - /docs/crafting-your-repository/structuring-a-repository
+  - /docs/crafting-your-repository/configuring-tasks
+related:
+  - /docs/guides/multi-language
+  - /docs/crafting-your-repository/caching
+  - /docs/crafting-your-repository/running-tasks
+---
+
+Turborepo can discover [Go workspace](https://go.dev/ref/mod#workspaces) modules as packages, add their dependency relationships to the Package Graph, and map common tasks to Go commands. The Go toolchain remains responsible for package loading, dependency resolution, compilation, and testing.
+
+<Callout type="warn">
+  Go workspace support is experimental and may change. Use a version of `turbo`
+  that recognizes `experimentalGoWorkspaces` everywhere the repository runs,
+  including local hooks and CI. Older versions reject unknown future flags.
+</Callout>
+
+## Enable Go workspaces
+
+Set the future flag in the root `turbo.json`:
+
+```json title="./turbo.json"
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "futureFlags": {
+    "experimentalGoWorkspaces": true
+  },
+  "tasks": {}
+}
+```
+
+## Workspace structure
+
+For a multi-module repository, commit a root `go.work` whose `use` directives list each module:
+
+```go title="./go.work"
+go 1.24
+
+use (
+  ./apps/api
+  ./packages/auth
+)
+```
+
+Each listed directory must contain a valid `go.mod`. Its `module` path becomes the Turborepo package name. A requirement on another workspace module, including one connected through a local `replace`, becomes an edge in the Package Graph.
+
+A repository without `go.work` can contain one root `go.mod`; Turborepo discovers it as a single package. Nested and overlapping workspaces are not supported.
+
+The `go` command must be available on `PATH`. Discovery uses read-only module loading, so missing or stale sums and invalid workspace configuration fail with the underlying Go diagnostic rather than silently changing committed files.
+
+## Built-in tasks
+
+Turborepo registers common Go tasks for every module:
+
+| Turbo task | Go command |
+| --- | --- |
+| `build` | `go build ./...` |
+| `test` | `go test ./...` |
+| `check` | `go vet ./...` |
+| `lint` | `go vet ./...` |
+| `format` | `go fmt ./...` |
+| `run` / `dev` | `go run <import-path>` when the module has exactly one `main` package |
+
+`format`, `run`, and `dev` are not cached. `go build ./...` does not claim Go's global build cache or module cache as Turborepo outputs. Modules with zero or multiple `main` packages do not expose `run` or `dev`.
+
+Arguments after Turborepo's `--` are passed to the Go command:
+
+```bash title="Terminal"
+turbo run test --filter=example.com/api -- -run TestLogin
+turbo run run --filter=example.com/api -- --port=8080
+```
+
+## Filtering, affected packages, and queries
+
+Module paths work as normal package selectors:
+
+```bash title="Terminal"
+# Build all JavaScript, Rust, Python, and Go entrypoints
+turbo run build
+
+# Test one Go module
+turbo run test --filter=example.com/api
+
+# Test the module and its dependencies
+turbo run test --filter=example.com/api...
+```
+
+Go module edges also participate in `--affected`, dependency/dependent selectors, `turbo query`, watch mode, and mixed-language task graphs.
+
+## Caching behavior
+
+Go task hashes include:
+
+- The module's source files and source files from internal module dependencies
+- `go.mod`, `go.sum`, root `go.work`, and `go.work.sum`
+- The resolved external module closure reported by `go list`, including versions, replacements, and available checksums
+- The local `go version` identity
+- Go target, experiment, compiler, cgo, and build-flag environment variables
+
+Declare project-specific environment variables and generated inputs in normal task configuration.
+
+## Pruning
+
+`turbo prune <module-path>` closes over required local modules, copies their package directories, writes a reduced root `go.work`, preserves relevant workspace replacements, and reduces `go.sum` and `go.work.sum` to checksums used by the retained external dependency closure.
+
+## Limitations
+
+- Only a root `go.work`, or a standalone root `go.mod` when no workspace file exists, is discovered.
+- `go.work` `use` entries must resolve inside the repository and cannot overlap.
+- `run` and `dev` require exactly one discovered `main` package in the module.
+- Turborepo never updates module files during graph construction. Go may populate its own module and build caches while loading the selected graph; keep committed module metadata current.

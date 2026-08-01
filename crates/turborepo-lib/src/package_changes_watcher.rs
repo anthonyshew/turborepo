@@ -969,6 +969,7 @@ mod test {
             RepositoryGraphFeatures {
                 cargo: cargo_enabled,
                 python: false,
+                go: false,
             },
         )
     }
@@ -1109,6 +1110,7 @@ mod test {
         assert!(RepositoryGraphFeatures {
             cargo: true,
             python: false,
+            go: false,
         }
         .load_root_package_json(&repo_root)
         .is_err());
@@ -1800,6 +1802,7 @@ mod test {
             RepositoryGraphFeatures {
                 cargo: false,
                 python: false,
+                go: false,
             },
         );
 

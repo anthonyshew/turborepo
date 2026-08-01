@@ -77,6 +77,10 @@ impl ToolchainId {
     /// `futureFlags.experimentalPythonWorkspaces`.
     pub const PYTHON: ToolchainId = ToolchainId(Cow::Borrowed("python"));
 
+    /// The Go toolchain: modules discovered from `go.work` or a root `go.mod`.
+    /// Experimental, gated behind `futureFlags.experimentalGoWorkspaces`.
+    pub const GO: ToolchainId = ToolchainId(Cow::Borrowed("go"));
+
     pub fn new(id: impl Into<Cow<'static, str>>) -> Self {
         Self(id.into())
     }
@@ -897,6 +901,7 @@ mod tests {
             context.native_tasks().get("build").expect("build task"),
             Some(&PackageManager::Npm),
             which::which("npm").ok().as_deref(),
+            None,
             None,
             None,
             None,

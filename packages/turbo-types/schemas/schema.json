@@ -305,6 +305,11 @@
           "default": false,
           "type": "boolean"
         },
+        "experimentalGoWorkspaces": {
+          "description": "Treat Go modules as Turborepo packages.\n\nWith a root `go.work`, modules in `use` directives are discovered. If no workspace file exists, a root `go.mod` is discovered as one module. Module paths are package identities. This feature is experimental.",
+          "default": false,
+          "type": "boolean"
+        },
         "experimentalObservability": {
           "description": "Enable experimental OpenTelemetry exporter support.\n\nWhen enabled, Turborepo will honor the `experimentalObservability` configuration block (if present) to send run summaries to an observability backend.",
           "default": false,

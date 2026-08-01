@@ -563,7 +563,7 @@ pub struct ProcessedIncrementalPartition {
 /// The canonical toolchain ids accepted as `command` map keys, alongside
 /// their accepted aliases. Kept as literals: this crate sits below the
 /// toolchain registry, and these ids are stable public API.
-const KNOWN_TOOLCHAINS: [&str; 3] = ["javascript", "rust", "python"];
+const KNOWN_TOOLCHAINS: [&str; 4] = ["javascript", "rust", "python", "go"];
 const TOOLCHAIN_ALIASES: [(&str, &str); 1] = [("typescript", "javascript")];
 
 /// A task `command` after alias resolution and validation: the argv the
@@ -659,6 +659,7 @@ impl ProcessedCommand {
             "python" if !future_flags.experimental_python_workspaces => {
                 Some("experimentalPythonWorkspaces")
             }
+            "go" if !future_flags.experimental_go_workspaces => Some("experimentalGoWorkspaces"),
             _ => None,
         };
         if let Some(flag) = missing_flag {
@@ -915,6 +916,29 @@ mod tests {
     }
 
     #[test]
+    fn test_command_go_key_requires_go_workspace_flag() {
+        let err = ProcessedCommand::from_raw(
+            spanned_map(&[("go", &["go", "test", "./..."])]),
+            &command_flags(),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, Error::TaskCommandToolchainRequiresFlag { ref flag, .. }
+            if *flag == "experimentalGoWorkspaces")
+        );
+
+        let flags = FutureFlags {
+            experimental_task_command: true,
+            experimental_go_workspaces: true,
+            ..Default::default()
+        };
+        let command =
+            ProcessedCommand::from_raw(spanned_map(&[("go", &["go", "test", "./..."])]), &flags)
+                .unwrap();
+        assert!(matches!(command, ProcessedCommand::PerToolchain(_)));
+    }
+
+    #[test]
     fn test_command_argv_processed() {
         let command = ProcessedCommand::from_raw(
             spanned_argv(&["cargo", "nextest", "run"]),
@@ -969,7 +993,7 @@ mod tests {
 
     #[test]
     fn test_command_unknown_toolchain_hints() {
-        let err = ProcessedCommand::from_raw(spanned_map(&[("go", &["go"])]), &command_flags())
+        let err = ProcessedCommand::from_raw(spanned_map(&[("ruby", &["ruby"])]), &command_flags())
             .unwrap_err();
         assert!(
             matches!(err, Error::TaskCommandUnknownToolchain { ref hint, .. }

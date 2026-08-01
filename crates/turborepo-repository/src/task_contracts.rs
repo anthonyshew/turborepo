@@ -62,6 +62,7 @@ pub enum CommandMapTarget {
     JavaScript,
     Rust,
     Python,
+    Go,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,7 +88,10 @@ impl CommandMapTarget {
     fn matches(self, key: &str) -> bool {
         matches!(
             (self, key),
-            (Self::JavaScript, "javascript") | (Self::Rust, "rust") | (Self::Python, "python")
+            (Self::JavaScript, "javascript")
+                | (Self::Rust, "rust")
+                | (Self::Python, "python")
+                | (Self::Go, "go")
         )
     }
 }
@@ -96,6 +100,7 @@ impl CommandMapTarget {
 enum DynamicTaskContract {
     Cargo(crate::cargo::CargoTaskContract),
     Python(crate::uv::UvTaskContract),
+    Go(crate::go::GoTaskContract),
 }
 
 /// Per-scope task-contract observation produced at repository construction.
@@ -203,6 +208,32 @@ impl ScopeTaskContract {
         }
     }
 
+    pub(crate) fn go(
+        contract: crate::go::GoTaskContract,
+        defaults: BTreeMap<String, TaskDefaults>,
+        entrypoints: BTreeMap<String, TaskEntrypoint>,
+    ) -> Self {
+        Self {
+            derives_io: true,
+            defaults: TaskDefaults::default(),
+            environment: Some(TaskEnvironmentRequirement::new(
+                TaskEnvironmentDomain(Cow::Borrowed("go-task-io")),
+                crate::go::HASHED_ENV_VARS.to_vec(),
+            )),
+            toolchain: Some(ToolchainId::GO),
+            command_map_target: Some(CommandMapTarget::Go),
+            entrypoint_domain: Some(TaskEntrypointDomain(Cow::Borrowed("go"))),
+            prune_package_mode: Some(PrunePackageMode::NativeDomain(
+                crate::prune_knowledge::GO_PRUNE_DOMAIN.clone(),
+            )),
+            dependency_source_inputs: DependencySourceInputs::Include,
+            dynamic: Some(DynamicTaskContract::Go(contract)),
+            static_defaults: defaults,
+            static_io: BTreeMap::new(),
+            static_entrypoints: entrypoints,
+        }
+    }
+
     /// Static derived contract for simple native producers and tests.
     pub fn derived(
         toolchain: ToolchainId,
@@ -289,6 +320,11 @@ impl ScopeTaskContract {
             return match dynamic {
                 DynamicTaskContract::Cargo(contract) => contract.task_defaults(task),
                 DynamicTaskContract::Python(contract) => contract.task_defaults(task),
+                DynamicTaskContract::Go(_) => self
+                    .static_defaults
+                    .get(task)
+                    .cloned()
+                    .unwrap_or_else(|| self.defaults.clone()),
             };
         }
         self.static_defaults
@@ -302,6 +338,7 @@ impl ScopeTaskContract {
             || self.dynamic.as_ref().is_some_and(|dynamic| match dynamic {
                 DynamicTaskContract::Cargo(contract) => contract.derives_task_io(task),
                 DynamicTaskContract::Python(contract) => contract.derives_task_io(task),
+                DynamicTaskContract::Go(contract) => contract.derives_task_io(task),
             })
     }
 
@@ -334,6 +371,14 @@ impl ScopeTaskContract {
                 wants_automatic_inputs,
                 context,
             ),
+            DynamicTaskContract::Go(contract) => contract.derived_task_io(
+                package,
+                task,
+                path_to_root,
+                dependencies,
+                wants_automatic_inputs,
+                context,
+            ),
         }
     }
 
@@ -344,6 +389,7 @@ impl ScopeTaskContract {
             .or_else(|| match self.dynamic.as_ref()? {
                 DynamicTaskContract::Cargo(contract) => contract.task_entrypoint(task),
                 DynamicTaskContract::Python(contract) => contract.task_entrypoint(task),
+                DynamicTaskContract::Go(_) => None,
             })
     }
 

@@ -6,7 +6,7 @@ This document serves as a sketch of the architecture of the `turbo run` command
 
 A run consists of the following steps:
 
-1. Build a package graph based on the JavaScript package manager settings (and, behind `futureFlags.experimentalCargoWorkspaces` / `futureFlags.experimentalPythonWorkspaces`, Cargo workspace crates and uv workspace members)
+1. Build a package graph based on the JavaScript package manager settings (and, behind the corresponding future flags, Cargo workspace crates, uv workspace members, and Go modules)
 2. Build a task graph based on package dependencies and configuration
 3. Determine global/task hashes
 4. Execute tasks in topological order
@@ -627,6 +627,21 @@ End-to-end coverage in `crates/turborepo/tests/uv_workspace_test.rs` exercises
 pure uv and mixed npm/uv repositories, graph shape, filtering, affectedness,
 execution, and prune output. Linux Rust CI installs a pinned uv version; local
 tests that execute uv skip when it is unavailable.
+
+#### Experimental Go Support (`crates/turborepo-repository/src/go.rs`)
+
+Behind `futureFlags.experimentalGoWorkspaces`, repository construction discovers
+root `go.work` `use` entries, or a standalone root `go.mod`, as package scopes.
+Module paths are package identities. `go.mod` requirements and local `replace`
+directives contribute already-classified internal edges; `go list -mod=readonly`
+provides each package's resolved external module closure and `main` package shape.
+The graph-owned native catalog maps build, test, vet, format, and single-main
+run/dev tasks to direct `go` invocations. Task contracts include dependency
+sources, Go configuration and target environment, the local compiler identity,
+and never claims Go's own build or module cache as task outputs. Watch knowledge
+tracks workspace, manifest, and sum changes. The generation-owned prune domain
+closes over local modules and renders a reduced `go.work` plus relevant checksum
+lines without invoking or mutating the source workspace.
 
 ### 3. Task Graph (`crates/turborepo-lib/src/engine/`)
 

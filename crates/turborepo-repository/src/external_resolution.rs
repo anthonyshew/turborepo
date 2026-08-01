@@ -398,6 +398,9 @@ pub const CARGO_RESOLUTION_DOMAIN: ExternalResolutionDomainId =
 /// Built-in uv lockfile domain.
 pub const PYTHON_RESOLUTION_DOMAIN: ExternalResolutionDomainId =
     ExternalResolutionDomainId(Cow::Borrowed("python"));
+/// Built-in Go module resolution domain.
+pub const GO_RESOLUTION_DOMAIN: ExternalResolutionDomainId =
+    ExternalResolutionDomainId(Cow::Borrowed("go"));
 
 /// One parser-neutral external resolution domain contributed by a producer.
 #[derive(Debug, Clone, PartialEq, Eq)]

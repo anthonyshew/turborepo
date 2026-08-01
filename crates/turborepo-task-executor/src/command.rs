@@ -175,6 +175,8 @@ pub struct ToolchainCommandProvider<'a, M = crate::NoMfeConfig> {
     cargo_binary: std::sync::OnceLock<Result<std::path::PathBuf, which::Error>>,
     /// Lazily resolved uv binary path for Python framing.
     uv_binary: std::sync::OnceLock<Result<std::path::PathBuf, which::Error>>,
+    /// Lazily resolved Go binary path.
+    go_binary: std::sync::OnceLock<Result<std::path::PathBuf, which::Error>>,
 }
 
 impl<'a, M: MfeConfigProvider> ToolchainCommandProvider<'a, M> {
@@ -194,6 +196,7 @@ impl<'a, M: MfeConfigProvider> ToolchainCommandProvider<'a, M> {
             package_manager_binary: std::sync::OnceLock::new(),
             cargo_binary: std::sync::OnceLock::new(),
             uv_binary: std::sync::OnceLock::new(),
+            go_binary: std::sync::OnceLock::new(),
         }
     }
 
@@ -219,6 +222,13 @@ impl<'a, M: MfeConfigProvider> ToolchainCommandProvider<'a, M> {
 
     fn uv_binary(&self) -> Result<Option<&std::path::Path>, CommandProviderError> {
         match self.uv_binary.get_or_init(|| which::which("uv")) {
+            Ok(path) => Ok(Some(path.as_path())),
+            Err(_) => Ok(None),
+        }
+    }
+
+    fn go_binary(&self) -> Result<Option<&std::path::Path>, CommandProviderError> {
+        match self.go_binary.get_or_init(|| which::which("go")) {
             Ok(path) => Ok(Some(path.as_path())),
             Err(_) => Ok(None),
         }
@@ -263,16 +273,21 @@ impl<'a, M: MfeConfigProvider, E: From<CommandProviderError>> CommandProvider<E>
         };
 
         let spec = if let Some(native_task) = package_context.native_tasks().get(task_id.task()) {
-            let (package_manager_binary, cargo_binary, uv_binary) = if override_command.is_some() {
-                (None, None, None)
+            let (package_manager_binary, cargo_binary, uv_binary, go_binary) = if override_command
+                .is_some()
+            {
+                (None, None, None, None)
             } else {
                 match native_task.command() {
                     Some(NativeCommandTemplate::JavaScriptPackageManagerRun { .. }) => {
-                        (self.package_manager_binary()?, None, None)
+                        (self.package_manager_binary()?, None, None, None)
                     }
-                    Some(NativeCommandTemplate::Cargo { .. }) => (None, self.cargo_binary()?, None),
-                    Some(NativeCommandTemplate::Uv { .. }) => (None, None, self.uv_binary()?),
-                    None => (None, None, None),
+                    Some(NativeCommandTemplate::Cargo { .. }) => {
+                        (None, self.cargo_binary()?, None, None)
+                    }
+                    Some(NativeCommandTemplate::Uv { .. }) => (None, None, self.uv_binary()?, None),
+                    Some(NativeCommandTemplate::Go { .. }) => (None, None, None, self.go_binary()?),
+                    None => (None, None, None, None),
                 }
             };
             turborepo_repository::native_tasks::resolve_task_command(
@@ -282,6 +297,7 @@ impl<'a, M: MfeConfigProvider, E: From<CommandProviderError>> CommandProvider<E>
                 package_manager_binary,
                 cargo_binary,
                 uv_binary,
+                go_binary,
                 self.task_args.args_for_task(task_id),
                 override_command,
             )

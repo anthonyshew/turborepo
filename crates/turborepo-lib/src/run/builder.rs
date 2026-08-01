@@ -392,6 +392,17 @@ impl RunBuilder {
             {
                 Error::PackageMayBePythonPackage { name }
             }
+            ResolutionError::NoPackagesMatchedWithName(name)
+                if !go_enabled(&opts.future_flags)
+                    && (repo_root
+                        .join_component(turborepo_repository::go::GO_WORK)
+                        .exists()
+                        || repo_root
+                            .join_component(turborepo_repository::go::GO_MOD)
+                            .exists()) =>
+            {
+                Error::PackageMayBeGoModule { name }
+            }
             err => Error::Scope(err),
         })?;
 
@@ -531,10 +542,10 @@ impl RunBuilder {
             })
         };
         // A pure native workspace (experimentalCargoWorkspaces or
-        // experimentalPythonWorkspaces, no root package.json) has no
-        // JavaScript root manifest. A *missing* file is only tolerated in
-        // those modes; a malformed one always fails, and a missing one
-        // without native support keeps the original hard error.
+        // experimentalPythonWorkspaces, or experimentalGoWorkspaces, no root
+        // package.json) has no JavaScript root manifest. A *missing* file is
+        // only tolerated in those modes; a malformed one always fails, and a
+        // missing one without native support keeps the original hard error.
         let graph_features = RepositoryGraphFeatures::new(&self.opts.future_flags);
         let root_package_json = graph_features.load_root_package_json(&self.repo_root)?;
         let run_telemetry = GenericEventBuilder::new().with_parent(&telemetry);
@@ -1484,6 +1495,11 @@ pub(crate) fn cargo_enabled(future_flags: &turborepo_turbo_json::FutureFlags) ->
 /// invoker sees the same package graph.
 pub(crate) fn python_enabled(future_flags: &turborepo_turbo_json::FutureFlags) -> bool {
     RepositoryGraphFeatures::new(future_flags).python_enabled()
+}
+
+/// Whether experimental Go module support is enabled.
+pub(crate) fn go_enabled(future_flags: &turborepo_turbo_json::FutureFlags) -> bool {
+    RepositoryGraphFeatures::new(future_flags).go_enabled()
 }
 
 fn origins_match(url1: &str, url2: &str) -> bool {

@@ -867,6 +867,19 @@ export interface FutureFlags {
    * @defaultValue `false`
    */
   experimentalPythonWorkspaces?: boolean;
+
+  /**
+   * Treat Go modules as Turborepo packages.
+   *
+   * With a root `go.work`, modules in `use` directives are discovered. If no
+   * workspace file exists, a root `go.mod` is discovered as one module.
+   * Module paths are package identities. Go dependencies and the compiler
+   * identity contribute to task hashes; `turbo prune` emits a reduced
+   * `go.work` for selected modules. This feature is experimental.
+   *
+   * @defaultValue `false`
+   */
+  experimentalGoWorkspaces?: boolean;
 }
 
 "#

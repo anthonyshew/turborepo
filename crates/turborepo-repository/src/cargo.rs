@@ -3863,6 +3863,7 @@ release: 1.96.0-nightly\n",
                 None,
                 cargo_binary.as_deref(),
                 None,
+                None,
                 pass_through_args,
                 override_command,
             )
