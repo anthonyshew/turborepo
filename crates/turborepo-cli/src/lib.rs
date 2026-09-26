@@ -9,7 +9,6 @@
 // Command dispatch returns shared structured errors through 63 production
 // functions; keep error layouts stable until a separate API/performance review.
 #![allow(clippy::result_large_err)]
-#![allow(dead_code)]
 
 mod cli;
 mod commands;

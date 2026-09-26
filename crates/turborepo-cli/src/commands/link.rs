@@ -1,10 +1,4 @@
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-use std::{
-    fs::{File, OpenOptions},
-    io,
-    io::{BufRead, Write},
-};
+use std::io;
 
 #[cfg(not(test))]
 use console::Style;
@@ -67,7 +61,6 @@ pub enum Error {
 
 #[derive(Clone)]
 pub(crate) enum SelectedTeam<'a> {
-    User,
     Team(&'a Team),
 }
 
@@ -132,9 +125,8 @@ pub(crate) async fn verify_caching_enabled<'a>(
     token: &SecretString,
     selected_team: Option<SelectedTeam<'a>>,
 ) -> Result<(), Error> {
-    let team_slug = selected_team.as_ref().and_then(|team| match team {
-        SelectedTeam::Team(team) => Some(team.slug.as_str()),
-        SelectedTeam::User => None,
+    let team_slug = selected_team.as_ref().map(|team| match team {
+        SelectedTeam::Team(team) => team.slug.as_str(),
     });
 
     let response = api_client
@@ -152,11 +144,6 @@ pub(crate) async fn verify_caching_enabled<'a>(
                             format!("https://vercel.com/teams/{}/settings/billing", team.slug);
 
                         enable_caching(&url)?;
-                    }
-                    Some(SelectedTeam::User) => {
-                        let url = "https://vercel.com/account/billing";
-
-                        enable_caching(url)?;
                     }
                     None => {
                         let team = api_client
@@ -218,18 +205,12 @@ pub async fn link(
         return Err(Error::NotLinking);
     }
 
-    let user_response = retry_with_recovered_token(&mut token, |token| {
+    retry_with_recovered_token(&mut token, |token| {
         let api_client = &api_client;
         async move { api_client.get_user(&token).await }
     })
     .await
     .map_err(Error::UserNotFound)?;
-
-    let user_display_name = user_response
-        .user
-        .name
-        .as_deref()
-        .unwrap_or(user_response.user.username.as_str());
 
     let teams_response = retry_with_recovered_token(&mut token, |token| {
         let api_client = &api_client;
@@ -251,7 +232,6 @@ pub async fn link(
     };
 
     let team_id = match selected_team {
-        SelectedTeam::User => user_response.user.id.as_str(),
         SelectedTeam::Team(team) => team.id.as_str(),
     };
 
@@ -286,7 +266,6 @@ pub async fn link(
         })?;
 
     let chosen_team_name = match selected_team {
-        SelectedTeam::User => user_display_name,
         SelectedTeam::Team(team) => team.name.as_str(),
     };
 
@@ -398,31 +377,6 @@ fn enable_caching(url: &str) -> Result<(), Error> {
     Err(Error::EnableCaching)
 }
 
-fn add_turbo_to_gitignore(base: &CommandBase) -> Result<(), io::Error> {
-    let gitignore_path = base.repo_root.join_component(".gitignore");
-
-    if !gitignore_path.exists() {
-        let mut gitignore = File::create(gitignore_path)?;
-        #[cfg(unix)]
-        gitignore.metadata()?.permissions().set_mode(0o0644);
-        writeln!(gitignore, ".turbo")?;
-    } else {
-        let gitignore = File::open(&gitignore_path)?;
-        let mut lines = io::BufReader::new(gitignore).lines();
-        let has_turbo = lines.any(|line| line.is_ok_and(|line| line.trim() == ".turbo"));
-        if !has_turbo {
-            let mut gitignore = OpenOptions::new()
-                .read(true)
-                .append(true)
-                .open(&gitignore_path)?;
-
-            writeln!(gitignore, ".turbo")?;
-        }
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod test {
     use std::{fs, time::Duration};
@@ -490,8 +444,13 @@ mod test {
             ColorConfig::new(false),
         );
 
-        link::link(&mut base, None, false, false).await?;
+        link::link(&mut base, None, true, false).await?;
 
+        assert!(
+            fs::read_to_string(repo_root.join_component(".gitignore"))?
+                .lines()
+                .any(|line| line == ".turbo")
+        );
         handle.abort();
 
         // read the config
@@ -500,10 +459,7 @@ mod test {
             .build()?;
         let team_id = updated_config.team_id();
 
-        assert!(
-            team_id == Some(turborepo_vercel_api_mock::EXPECTED_USER_ID)
-                || team_id == Some(turborepo_vercel_api_mock::EXPECTED_TEAM_ID)
-        );
+        assert_eq!(team_id, Some(turborepo_vercel_api_mock::EXPECTED_TEAM_ID));
 
         Ok(())
     }
