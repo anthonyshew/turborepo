@@ -405,14 +405,11 @@ impl<T> WatchConfig<T> {
     /// Await a full filesystem flush from the watcher.
     pub async fn flush(&self) -> Result<(), ConfigError> {
         let mut setup_rx = self.setup_receiver.clone();
-        // TODO once upgraded to tokio 1.27 use wait_until
-        while (*setup_rx.borrow()).is_none() {
-            // If this fails that means the channel was closed forcefully by the sender
-            if setup_rx.changed().await.is_err() {
-                return Err(ConfigError::ServerFailedToStart);
-            }
-        }
-        if *setup_rx.borrow() == Some(false) {
+        let setup = *setup_rx
+            .wait_for(Option::is_some)
+            .await
+            .map_err(|_| ConfigError::ServerFailedToStart)?;
+        if setup == Some(false) {
             return Err(ConfigError::ServerFailedToStart);
         }
 
@@ -653,5 +650,30 @@ mod test {
                 }
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_flush_waits_for_setup() {
+        let (setup_tx, setup_rx) = watch::channel(None);
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let config = WatchConfig {
+            flush: tx,
+            setup_receiver: setup_rx,
+            watcher: Arc::new(Mutex::new(())),
+        };
+        let flush = tokio::spawn(async move { config.flush().await });
+        assert!(setup_tx.send(Some(true)).is_ok());
+
+        let result = tokio::time::timeout(Duration::from_secs(1), async {
+            let Some(super::WatcherCommand::Flush(response)) = rx.recv().await else {
+                panic!("expected flush command");
+            };
+            response.send(()).unwrap();
+            flush.await.unwrap()
+        })
+        .await
+        .expect("flush should complete after setup succeeds");
+
+        assert!(result.is_ok());
     }
 }
