@@ -503,9 +503,6 @@ impl Subscriber {
             match resolve_turbo_config_path(&self.repo_root) {
                 Ok(path) => path,
                 Err(_) => {
-                    // TODO: If both turbo.json and turbo.jsonc exist, log warning and default to
-                    // turbo.json to preserve existing behavior for file
-                    // watching prior to refactoring.
                     tracing::warn!(
                         "Found both turbo.json and turbo.jsonc in {}. Using turbo.json for \
                          watching.",

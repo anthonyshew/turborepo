@@ -352,10 +352,6 @@ impl From<WalkError> for GlobError {
     }
 }
 
-// TODO: `Diagnostic` is implemented with macros for brevity and to ensure
-// complete coverage of       features. However, this means that documentation
-// does not annotate the implementation with       a feature flag requirement.
-// If possible, perhaps in a later version of Rust, close this       gap.
 /// Describes errors that occur when building a [`Program`] from a glob
 /// expression.
 ///
