@@ -1488,65 +1488,6 @@ impl From<&ExecutionArgs> for ExecutionSelector {
     }
 }
 
-impl ExecutionArgs {
-    fn track(&self, telemetry: &CommandEventBuilder) {
-        // default to false
-        track_usage!(
-            telemetry,
-            self.framework_inference.unwrap_or(true),
-            |val: bool| !val
-        );
-
-        track_usage!(telemetry, self.continue_execution, |val| matches!(
-            val,
-            ContinueModeArg::Always | ContinueModeArg::DependenciesSuccessful
-        ));
-        telemetry.track_arg_value(
-            "continue-execution-strategy",
-            self.continue_execution,
-            EventType::NonSensitive,
-        );
-
-        track_usage!(telemetry, self.single_package, |val| val);
-        track_usage!(telemetry, self.only, |val| val);
-        track_usage!(telemetry, &self.cache_dir, Option::is_some);
-        track_usage!(telemetry, &self.pkg_inference_root, Option::is_some);
-
-        if let Some(concurrency) = &self.concurrency {
-            telemetry.track_arg_value("concurrency", concurrency, EventType::NonSensitive);
-        }
-
-        if !self.global_deps.is_empty() {
-            telemetry.track_arg_value(
-                "global-deps",
-                self.global_deps.join(", "),
-                EventType::NonSensitive,
-            );
-        }
-
-        if let Some(env_mode) = self.env_mode {
-            telemetry.track_arg_value("env-mode", env_mode, EventType::NonSensitive);
-        }
-
-        if let Some(output_logs) = &self.output_logs {
-            telemetry.track_arg_value("output-logs", output_logs, EventType::NonSensitive);
-        }
-
-        if let Some(log_order) = self.log_order {
-            telemetry.track_arg_value("log-order", log_order, EventType::NonSensitive);
-        }
-
-        if self.log_prefix != LogPrefixArg::default() {
-            telemetry.track_arg_value("log-prefix", self.log_prefix, EventType::NonSensitive);
-        }
-
-        // track sizes
-        if !self.filter.is_empty() {
-            telemetry.track_arg_value("filter:length", self.filter.len(), EventType::NonSensitive);
-        }
-    }
-}
-
 #[derive(UsageArgs, Clone, Debug, PartialEq)]
 #[usage(args_override_self = false, group("daemon-group"))]
 pub struct RunArgs {

@@ -4,28 +4,6 @@ use turbopath::{AbsoluteSystemPath, AbsoluteSystemPathBuf};
 
 use super::{ConfigurationFileInputs, ConfigurationOptions, Error, TurborepoConfigBuilder};
 
-/// Ordered from lowest to highest precedence.
-pub const CONFIGURATION_PRECEDENCE: &[ConfigurationSource] = &[
-    ConfigurationSource::TurboJson,
-    ConfigurationSource::GlobalConfig,
-    ConfigurationSource::GlobalAuth,
-    ConfigurationSource::LocalConfig,
-    ConfigurationSource::OverrideEnvironment,
-    ConfigurationSource::Environment,
-    ConfigurationSource::Cli,
-];
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConfigurationSource {
-    TurboJson,
-    GlobalConfig,
-    GlobalAuth,
-    LocalConfig,
-    Environment,
-    OverrideEnvironment,
-    Cli,
-}
-
 pub fn resolve_configuration_with_overrides(
     repo_root: &AbsoluteSystemPath,
     overrides: ConfigurationOptions,
