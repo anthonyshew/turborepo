@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 // Run orchestration returns rich, shared errors through 28 production methods.
 // Narrow annotations would duplicate this API-wide decision; revisit error
 // layout separately before changing its size or introducing allocations.
@@ -144,11 +143,17 @@ pub(crate) struct ExecutionContext {
 pub(crate) struct RunServices {
     pub(crate) processes: ProcessManager,
     pub(crate) run_telemetry: GenericEventBuilder,
+    // Auth is used to configure cache and analytics during build; retain the
+    // run-owned value until its lifecycle/telemetry contract is reviewed.
+    #[allow(dead_code)]
     pub(crate) api_auth: Option<APIAuth>,
     pub(crate) run_cache: Arc<RunCache>,
     pub(crate) signal_handler: SignalHandler,
     pub(crate) repo_index: PendingRepoIndex,
     pub(crate) observability_handle: Option<ObservabilityHandle>,
+    // CLI and watch pass this in; keep it alive for the duration of the run
+    // until query-server ownership and shutdown behavior are reviewed.
+    #[allow(dead_code)]
     pub(crate) query_server: Option<Arc<dyn turborepo_query_api::QueryServer>>,
     pub(crate) shutdown_started_emitted: Arc<AtomicBool>,
 }
